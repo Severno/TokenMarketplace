@@ -1,0 +1,13 @@
+node_modules/
+bundle/
+build
+dist
+.env
+.env-bsc_testnet
+.env-rinkeby_testnet
+.env-localhost
+.env-hardhat
+cache
+artifacts
+.vscode
+.idea
