@@ -37,7 +37,6 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     "cancelAllBids()": FunctionFragment;
     "cancelBid(uint256)": FunctionFragment;
     "createBid(uint256,uint256)": FunctionFragment;
-    "destributeTreasureForTrade(address)": FunctionFragment;
     "endSaleRound()": FunctionFragment;
     "endTradeRound()": FunctionFragment;
     "getBids()": FunctionFragment;
@@ -75,10 +74,6 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "createBid",
     values: [BigNumberish, BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "destributeTreasureForTrade",
-    values: [string]
   ): string;
   encodeFunctionData(
     functionFragment: "endSaleRound",
@@ -156,10 +151,6 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "cancelBid", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "createBid", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "destributeTreasureForTrade",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "endSaleRound",
     data: BytesLike
@@ -333,11 +324,6 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    destributeTreasureForTrade(
-      _msgSender: string,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     endSaleRound(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -449,11 +435,6 @@ export interface TokenMarketplace extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  destributeTreasureForTrade(
-    _msgSender: string,
-    overrides?: PayableOverrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   endSaleRound(
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -557,11 +538,6 @@ export interface TokenMarketplace extends BaseContract {
       _price: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
-
-    destributeTreasureForTrade(
-      _msgSender: string,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
 
     endSaleRound(overrides?: CallOverrides): Promise<void>;
 
@@ -748,11 +724,6 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    destributeTreasureForTrade(
-      _msgSender: string,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     endSaleRound(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -853,11 +824,6 @@ export interface TokenMarketplace extends BaseContract {
       _amount: BigNumberish,
       _price: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    destributeTreasureForTrade(
-      _msgSender: string,
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     endSaleRound(

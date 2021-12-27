@@ -56,21 +56,13 @@ contract TokenMarketplace is AccessControl {
     );
     event BuyToken(address _msgSender, uint256 _amount, uint256 _price);
 
-    modifier isActiveRound() {
-        require(
-            saleRounds[round].startTime + roundTime < block.timestamp,
-            "Marketplace: Sale round is over"
-        );
-        _;
-    }
-
-    modifier isActiveTradeRound() {
-        require(
-            tradeRounds[round].isActive,
-            "Marketplace: Trade round is not started yet"
-        );
-        _;
-    }
+    // modifier isActiveRound() {
+    //     require(
+    //         saleRounds[round].startTime + roundTime < block.timestamp,
+    //         "Marketplace: Sale round is over"
+    //     );
+    //     _;
+    // }
 
     modifier isAdmin() {
         require(
@@ -121,18 +113,24 @@ contract TokenMarketplace is AccessControl {
     /* ANCHOR Sale Round */
 
     function startSaleRound() external isAdmin {
-        if (round > 0) {
-            setupNewSaleRound();
-        }
+        // Set first round in contstructor. All all other rounds gonna be settuped here
+        if (round > 0) setupNewSaleRound();
 
-        SaleRoundSettings storage settings = saleRounds[round];
-        settings.isActive = true;
+        saleRounds[round].isActive = true;
 
-        token.mint(address(this), settings.tokensAmount);
+        token.mint(address(this), saleRounds[round].tokensAmount);
     }
 
     function endSaleRound() public isAdmin {
+        console.log(
+            isFullfilledMaxTrade(),
+            !isFullfilledMaxTrade(),
+            isSaleRoundTimeIsOver(),
+            !isSaleRoundTimeIsOver()
+        );
+        // Сan finish the round early if all tokens have been redeemed
         if (!isFullfilledMaxTrade()) {
+            // Сan finish the round if all tokens were not redeemed, but the time of the round is up
             require(
                 !isSaleRoundTimeIsOver(),
                 "Martketplace: Sale round time is not finished yet"
@@ -195,36 +193,41 @@ contract TokenMarketplace is AccessControl {
             "Marketplace: The token purchase limit for this round has been reached"
         );
 
-        settings.tradeAmount += amount;
+        uint256 leftAfterDestribution = destributeTreasureForSale(msg.sender);
+        uint256 tokensAmount = convertEthToTokens(leftAfterDestribution);
 
-        uint256 tokensAmount = convertEthToTokens(amount);
+        settings.tradeAmount += tokensAmount;
 
-        uint256 leftAfterDestribution = destributeTreasureForSale(
-            msg.sender,
-            tokensAmount
-        );
-
-        token.transfer(msg.sender, leftAfterDestribution);
+        token.transfer(msg.sender, tokensAmount);
 
         emit BuyToken(msg.sender, tokensAmount, settings.tokenPrice);
     }
 
-    function destributeTreasureForSale(address _msgSender, uint256 _amount)
+    function destributeTreasureForSale(address _msgSender)
         internal
         returns (uint256)
     {
         address referral = registrations[_msgSender];
-        uint256 leftAfterDestribution = _amount;
-        uint256 firstReferralTreasure = _amount - ((_amount / 100) * 95);
-        uint256 secondReferralTreasure = _amount - ((_amount / 100) * 97);
+        uint256 leftAfterDestribution = msg.value;
+        uint256 firstReferralTreasure = msg.value - ((msg.value / 100) * 95);
+        uint256 secondReferralTreasure = msg.value - ((msg.value / 100) * 97);
+        console.log("address(this)", msg.sender, address(this));
+        if (referrals[referral].length == 0) {
+            payable(address(this)).transfer(
+                firstReferralTreasure + secondReferralTreasure
+            );
+            leftAfterDestribution -=
+                firstReferralTreasure -
+                secondReferralTreasure;
+        }
 
         if (referrals[referral].length == 1) {
-            token.transfer(referrals[referral][0], firstReferralTreasure);
+            payable(referrals[referral][0]).transfer(firstReferralTreasure);
             leftAfterDestribution -= firstReferralTreasure;
         }
 
         if (referrals[referral].length == 2) {
-            token.transfer(referrals[referral][1], secondReferralTreasure);
+            payable(referrals[referral][1]).transfer(secondReferralTreasure);
             leftAfterDestribution -= secondReferralTreasure;
         }
 
@@ -233,11 +236,12 @@ contract TokenMarketplace is AccessControl {
 
     /* ANCHOR Trade Round */
 
-    function trade(uint256 _index, uint256 _amount)
-        external
-        payable
-        isActiveTradeRound
-    {
+    function trade(uint256 _index, uint256 _amount) external payable {
+        require(
+            tradeRounds[round].isActive,
+            "Marketplace: Trade round is not started yet"
+        );
+
         Bid storage bid = bids[_index];
 
         uint256 ethCost = convertTokensToEth(_amount, bid.price);
@@ -253,29 +257,7 @@ contract TokenMarketplace is AccessControl {
 
         require(msg.value == ethCost, "Marketplace: You don't have enough eth");
 
-        address referral = registrations[msg.sender];
-        uint256 leftAfterDestribution = msg.value;
-        uint256 firstReferralTreasure = msg.value - ((msg.value / 1000) * 975);
-        uint256 secondReferralTreasure = msg.value - ((msg.value / 1000) * 975);
-
-        // if (referrals[referral].length == 1) {
-        //     payable(referrals[referral][0]).transfer(firstReferralTreasure);
-        //     leftAfterDestribution -= firstReferralTreasure;
-        // }
-
-        // if (referrals[referral].length == 2) {
-        //     payable(referrals[referral][1]).transfer(secondReferralTreasure);
-        //     leftAfterDestribution -= secondReferralTreasure;
-        // }
-
-        // if (referrals[referral].length == 0) {
-        //     payable(address(this)).transfer(
-        //         firstReferralTreasure + secondReferralTreasure
-        //     );
-        //     leftAfterDestribution -=
-        //         firstReferralTreasure -
-        //         secondReferralTreasure;
-        // }
+        uint256 leftAfterDestribution = destributeTreasureForTrade(msg.sender);
 
         payable(bid.seller).transfer(leftAfterDestribution);
 
@@ -305,9 +287,7 @@ contract TokenMarketplace is AccessControl {
     }
 
     function destributeTreasureForTrade(address _msgSender)
-        public
-        payable
-        isAdmin
+        private
         returns (uint256)
     {
         uint256 _amount = msg.value;
@@ -316,6 +296,15 @@ contract TokenMarketplace is AccessControl {
         uint256 leftAfterDestribution = _amount;
         uint256 firstReferralTreasure = _amount - ((_amount / 1000) * 975);
         uint256 secondReferralTreasure = _amount - ((_amount / 1000) * 975);
+
+        if (referrals[referral].length == 0) {
+            payable(address(this)).transfer(
+                firstReferralTreasure + secondReferralTreasure
+            );
+            leftAfterDestribution -=
+                firstReferralTreasure -
+                secondReferralTreasure;
+        }
 
         if (referrals[referral].length == 1) {
             payable(referrals[referral][0]).transfer(firstReferralTreasure);
@@ -327,14 +316,6 @@ contract TokenMarketplace is AccessControl {
             leftAfterDestribution -= secondReferralTreasure;
         }
 
-        if (referrals[referral].length == 0) {
-            payable(address(this)).transfer(
-                firstReferralTreasure + secondReferralTreasure
-            );
-            leftAfterDestribution -=
-                firstReferralTreasure -
-                secondReferralTreasure;
-        }
         return leftAfterDestribution;
     }
 
@@ -425,7 +406,7 @@ contract TokenMarketplace is AccessControl {
     }
 
     function isSaleRoundTimeIsOver() internal view returns (bool) {
-        return saleRounds[round].startTime + roundTime < block.timestamp;
+        return saleRounds[round].startTime + roundTime > block.timestamp;
     }
 
     function isFullfilledMaxTrade() internal view returns (bool) {
