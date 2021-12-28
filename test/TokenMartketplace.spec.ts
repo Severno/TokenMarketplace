@@ -1,9 +1,9 @@
 import "@nomiclabs/hardhat-ethers";
 
 import { AcademyToken, AcademyToken__factory } from "../typechain-types";
-import { BaseProvider, JsonRpcProvider } from "@ethersproject/providers";
-import { BigNumber, Contract } from "ethers";
+import { BigNumber, Contract, Transaction } from "ethers";
 
+import { BaseProvider } from "@ethersproject/providers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signers";
 import { expect } from "chai";
 import hre from "hardhat";
@@ -27,22 +27,13 @@ const name = "Academy Token";
 const symbol = "ACDM";
 const initialSupply = "1000";
 const decimals = 18;
-const bigNumberInitialSupply = ethers.utils.parseUnits(initialSupply, decimals);
-
-const requiredMessage = {
-  tokenOwner: "DAO: You are not a token owner",
-  nonExistedFunction: "DAO: The called function is not in the contract",
-  proposalDoesNotExist: "DAO: Proposal doesn't exist",
-};
 
 let Token: AcademyToken__factory;
 let token: AcademyToken;
 let tokenAddress: string;
-const amount = ethers.utils.parseUnits("10", decimals);
-const bigAmount = ethers.utils.parseUnits("20", decimals);
 
 let TokenMarketplace;
-let tokenMarketplace: Contract;
+let mp: Contract;
 let tokenMarketplaceAddress: string;
 const firstRoundTokensAmount = 100000;
 const secondRoundTokensAmount = Math.round(4 / 0.0000143);
@@ -59,11 +50,6 @@ let smithAddress: string;
 let ownerBalance: string;
 let aliceBalance: string;
 let bobBalance: string;
-
-const gasOptions = {
-  gasPrice: ethers.utils.parseUnits("100", "gwei"),
-  gasLimit: 1000000,
-};
 
 function convertEthToTokensString(
   _amount: BigNumber,
@@ -86,6 +72,10 @@ function convertEthToTokensBigNumber(
   return _amount.div(_price);
 }
 
+function getTransactionFee(tx: Transaction): BigNumber {
+  return tx?.gasPrice || BigNumber.from(0);
+}
+
 describe("TokenMarketplace", () => {
   beforeEach(async function () {
     const initialAmountMintToUser = ethers.utils.parseUnits("1", decimals);
@@ -101,11 +91,11 @@ describe("TokenMarketplace", () => {
     // token.mint(alice.address, initialAmountMintToUser);
 
     TokenMarketplace = await ethers.getContractFactory("TokenMarketplace");
-    tokenMarketplace = await TokenMarketplace.deploy(token.address);
+    mp = await TokenMarketplace.deploy(token.address);
 
-    token.grantRole(MINTER_ROLE, tokenMarketplace.address);
-    token.grantRole(BURNER_ROLE, tokenMarketplace.address);
-    token.grantRole(ADMIN_ROLE, tokenMarketplace.address);
+    token.grantRole(MINTER_ROLE, mp.address);
+    token.grantRole(BURNER_ROLE, mp.address);
+    token.grantRole(ADMIN_ROLE, mp.address);
 
     ownerBalance = ethers.utils.formatEther(
       await token.balanceOf(owner.address)
@@ -121,13 +111,13 @@ describe("TokenMarketplace", () => {
     aliceAddress = alice.address;
     bobAddress = bob.address;
     smithAddress = smith.address;
-    tokenMarketplaceAddress = tokenMarketplace.address;
+    tokenMarketplaceAddress = mp.address;
 
     console.log("tokenAddress:", token.address);
     console.log("aliceAddress:", alice.address);
     console.log("bobAddress:", bob.address);
     console.log("smithAddress:", smith.address);
-    console.log("tokenMarketplaceAddress:", tokenMarketplace.address);
+    console.log("tokenMarketplaceAddress:", mp.address);
   });
 
   /* -------------------------------------------------------------------------- */
@@ -136,45 +126,24 @@ describe("TokenMarketplace", () => {
   describe("registration", async () => {
     /* -------------------------------------------------------------------------- */
     it("should revert if zero address", async () => {
-      await expect(
-        tokenMarketplace.registration(zeroAddress)
-      ).to.be.revertedWith("Marketplace: Referral can't be a zero address");
+      await expect(mp.registration(zeroAddress)).to.be.revertedWith(
+        "Marketplace: Referral can't be a zero address"
+      );
     });
     /* -------------------------------------------------------------------------- */
     it("should revert if referral is the user", async () => {
       await expect(
-        tokenMarketplace.connect(bob).registration(bob.address)
+        mp.connect(bob).registration(bob.address)
       ).to.be.revertedWith(
         "Marketplace: You can't choose yourself as a referral"
       );
     });
-    /* -------------------------------------------------------------------------- */
-    it("should revert if more then 2 referrals", async () => {
-      await tokenMarketplace.connect(bob).registration(smith.address);
-      await tokenMarketplace.connect(alice).registration(smith.address);
 
-      await expect(
-        tokenMarketplace.registration(smith.address)
-      ).to.be.revertedWith("Marketplace: User can only have two referrals");
-    });
-    /* -------------------------------------------------------------------------- */
-    it("should be ok to add 2 referrals", async () => {
-      await tokenMarketplace.connect(bob).registration(smith.address);
-      await tokenMarketplace.connect(alice).registration(smith.address);
-
-      const referral1 = await tokenMarketplace.referrals(smith.address, 0);
-      const referral2 = await tokenMarketplace.referrals(smith.address, 1);
-
-      expect(referral1).to.be.equal(bob.address);
-      expect(referral2).to.be.equal(alice.address);
-    });
     /* -------------------------------------------------------------------------- */
     it("should be registered after registration and has referral as address", async () => {
-      await tokenMarketplace.connect(bob).registration(smith.address);
+      await mp.connect(bob).registration(smith.address);
 
-      const registrationAddress = await tokenMarketplace.registrations(
-        bob.address
-      );
+      const registrationAddress = await mp.registrations(bob.address);
 
       expect(smith.address).to.be.equal(registrationAddress);
     });
@@ -185,13 +154,13 @@ describe("TokenMarketplace", () => {
   /* -------------------------------------------------------------------------- */
   describe("startSaleRound", async () => {
     it("should revert if is not an admin", async () => {
-      await expect(
-        tokenMarketplace.connect(bob).startSaleRound()
-      ).to.be.revertedWith("Marketplace: You are not an admin");
+      await expect(mp.connect(bob).startSaleRound()).to.be.revertedWith(
+        "Marketplace: You are not an admin"
+      );
     });
 
     it(`should mint ${firstRoundTokensAmount} tokens for the first round`, async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
       const tokenMarketplaceACDMTokensBalance = await token.balanceOf(
         tokenMarketplaceAddress
       );
@@ -202,48 +171,39 @@ describe("TokenMarketplace", () => {
     });
 
     it(`should mint ${secondRoundTokensAmount} tokens for the second round`, async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
 
-      const amount = ethers.utils.parseEther("0.5");
+      const value = ethers.utils.parseEther("0.5");
       const price = ethers.utils.parseEther("0.00001");
+      const tradeRoundTokenPrice = ethers.utils.parseEther("0.00008");
 
       await token
         .connect(bob)
-        .approve(
-          tokenMarketplace.address,
-          convertEthToTokensBigNumber(amount, price)
-        );
+        .approve(mp.address, convertEthToTokensBigNumber(value, price));
 
-      await tokenMarketplace.connect(bob).buyOnSaleRound({
-        value: amount,
+      await mp.connect(bob).buyToken({
+        value,
       });
 
-      // await tokenMarketplace.endSaleRound();
+      await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
+      await ethers.provider.send("evm_mine", []);
 
-      // const bobTokensBalance = await token.balanceOf(bobAddress);
+      await mp.endSaleRound();
+      const bobTokensBalance = await token.balanceOf(bobAddress);
+      await mp.connect(bob).createBid(bobTokensBalance, tradeRoundTokenPrice);
+      await mp.connect(alice).trade(0, bobTokensBalance, {
+        value: tradeRoundTokenPrice.mul(bobTokensBalance),
+      });
 
-      // await tokenMarketplace
-      //   .connect(bob)
-      //   .createBid(bobTokensBalance, ethers.utils.parseEther("0.00008"));
+      await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
+      await ethers.provider.send("evm_mine", []);
 
-      // await tokenMarketplace.connect(alice).trade(0, bobTokensBalance, {
-      //   value: ethers.utils.parseEther("0.00008").mul(bobTokensBalance),
-      // });
+      await mp.endTradeRound();
+      await mp.startSaleRound();
 
-      // const block = await provider.getBlock(1);
-      // const blockTimeStamp = block.timestamp;
+      const contractBalance = await token.balanceOf(tokenMarketplaceAddress);
 
-      // ethers.provider.send("evm_setNextBlockTimestamp", [
-      //   blockTimeStamp + threeDaysInSeconds,
-      // ]);
-      // ethers.provider.send("evm_mine", []);
-
-      // await tokenMarketplace.endTradeRound();
-      // await tokenMarketplace.startSaleRound();
-
-      // const contractBalance = await token.balanceOf(tokenMarketplaceAddress);
-
-      // expect(contractBalance).to.be.equal(secondRoundTokensAmount);
+      expect(contractBalance).to.be.equal(secondRoundTokensAmount);
     });
   });
 
@@ -253,23 +213,23 @@ describe("TokenMarketplace", () => {
   describe("endSaleRound", async () => {
     /* -------------------------------------------------------------------------- */
     it("should revert if is not an admin", async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
 
-      await expect(
-        tokenMarketplace.connect(bob).endSaleRound()
-      ).to.be.revertedWith("Marketplace: You are not an admin");
+      await expect(mp.connect(bob).endSaleRound()).to.be.revertedWith(
+        "Marketplace: You are not an admin"
+      );
     });
     /* -------------------------------------------------------------------------- */
     it("should revert if sale round is not finished yet", async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
 
-      await expect(tokenMarketplace.endSaleRound()).to.be.revertedWith(
+      await expect(mp.endSaleRound()).to.be.revertedWith(
         "Martketplace: Sale round time is not finished yet"
       );
     });
     /* -------------------------------------------------------------------------- */
     it("should burn unredeemed tokens", async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
       await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
       await ethers.provider.send("evm_mine", []);
 
@@ -282,7 +242,7 @@ describe("TokenMarketplace", () => {
         `Token balance should be ${firstRoundTokensAmount}`
       ).to.be.equal(firstRoundTokensAmount);
 
-      await tokenMarketplace.endSaleRound();
+      await mp.endSaleRound();
 
       const contractBalanceAfterBurning = await token.balanceOf(
         tokenMarketplaceAddress
@@ -295,12 +255,12 @@ describe("TokenMarketplace", () => {
     });
     /* -------------------------------------------------------------------------- */
     it("endSaleRound should startTradeRound", async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
       await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
       await ethers.provider.send("evm_mine", []);
-      await tokenMarketplace.endSaleRound();
+      await mp.endSaleRound();
 
-      const [, , isActive] = await tokenMarketplace.tradeRounds(0);
+      const [, , isActive] = await mp.tradeRounds(0);
 
       expect(isActive).to.be.true;
     });
@@ -308,61 +268,207 @@ describe("TokenMarketplace", () => {
   });
 
   /* -------------------------------------------------------------------------- */
-  /*                               buyOnSaleRound;                              */
+  /*                               buyToken;                              */
   /* -------------------------------------------------------------------------- */
 
-  describe("buyOnSaleRound", async () => {
+  describe("buyToken", async () => {
     /* -------------------------------------------------------------------------- */
     it("should be able to buy tokens", async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
 
-      const amount = ethers.utils.parseEther("0.5");
-      const contractBalance = await token.balanceOf(tokenMarketplace.address);
+      const value = ethers.utils.parseEther("0.5");
+      const contractBalance = await token.balanceOf(mp.address);
 
-      await tokenMarketplace.connect(bob).buyOnSaleRound({
-        value: amount,
+      await mp.connect(bob).buyToken({
+        value,
       });
 
       expect(
-        await token.balanceOf(tokenMarketplace.address),
+        await token.balanceOf(mp.address),
         "Contract balance does not change"
       ).to.be.equal(contractBalance.sub(await token.balanceOf(bob.address)));
 
       expect(
         await token.balanceOf(bob.address),
         `User balance becomes ${convertEthToTokensBigNumber(
-          amount,
+          value,
           tokenInitialPrice
         )}`
-      ).to.be.equal(convertEthToTokensBigNumber(amount, tokenInitialPrice));
+      ).to.be.equal(convertEthToTokensBigNumber(value, tokenInitialPrice));
+    });
+
+    it("contract should get all ETH if there is no referrer", async () => {
+      await mp.startSaleRound();
+      const value = ethers.utils.parseEther("0.5");
+      const contractTreasure = value;
+
+      await expect(
+        await mp.connect(smith).buyToken({
+          value,
+        })
+      ).to.changeEtherBalances(
+        [smith, mp],
+        [(-value).toString(), contractTreasure]
+      );
+    });
+    it("contract should get 95% ETH if there is one referrer", async () => {
+      await mp.startSaleRound();
+      const value = ethers.utils.parseEther("0.5");
+      const aliceTreasure = value.sub(value.div(100).mul(95));
+      const contractTreasure = value.div(100).mul(95);
+
+      await mp.connect(smith).registration(aliceAddress);
+
+      await expect(
+        await mp.connect(smith).buyToken({
+          value,
+        })
+      ).to.changeEtherBalances(
+        [smith, alice, mp],
+        [(-value).toString(), aliceTreasure, contractTreasure]
+      );
+    });
+
+    it("contract should get 92% ETH if there are two referrers", async () => {
+      await mp.startSaleRound();
+      const value = ethers.utils.parseEther("0.5");
+      const bobTreasure = value.sub(value.div(100).mul(97));
+      const aliceTreasure = value.sub(value.div(100).mul(95));
+      const contractTreasure = value.div(100).mul(92);
+
+      await mp.connect(alice).registration(bobAddress);
+      await mp.connect(smith).registration(aliceAddress);
+
+      await expect(
+        await mp.connect(smith).buyToken({
+          value,
+        })
+      ).to.changeEtherBalances(
+        [smith, alice, bob, mp],
+        [(-value).toString(), aliceTreasure, bobTreasure, contractTreasure]
+      );
+    });
+
+    /* -------------------------------------------------------------------------- */
+    it("should distribute ETH to first referral", async () => {
+      await mp.startSaleRound();
+      const value = ethers.utils.parseEther("0.5");
+      await mp.connect(alice).registration(bobAddress);
+      const bobTreasure = value.sub(value.div(100).mul(95));
+      const contractTreasure = value.div(100).mul(95);
+
+      await expect(
+        await mp.connect(alice).buyToken({
+          value,
+        })
+      ).to.changeEtherBalances(
+        [alice, bob, mp],
+        [(-value).toString(), bobTreasure, contractTreasure]
+      );
+    });
+
+    it("should distribute ETH for two level referral", async () => {
+      await mp.startSaleRound();
+      const value = ethers.utils.parseEther("0.5");
+      const bobTreasure = value.sub(value.div(100).mul(97));
+
+      await mp.connect(alice).registration(bobAddress);
+      await mp.connect(smith).registration(aliceAddress);
+
+      await expect(
+        await mp.connect(smith).buyToken({
+          value,
+        })
+      ).to.changeEtherBalance(bob, bobTreasure);
     });
     /* -------------------------------------------------------------------------- */
-    it("should distribute tokens to first referral", async () => {
-      await tokenMarketplace.startSaleRound();
+  });
 
-      const amount = ethers.utils.parseEther("0.5");
-      const contractBalance = await token.balanceOf(tokenMarketplace.address);
+  /* -------------------------------------------------------------------------- */
+  /*                                    trade                                   */
+  /* -------------------------------------------------------------------------- */
+  describe("trade", async () => {
+    it("should revert if trade round doesn't start yet", async () => {
+      await expect(
+        mp
+          .connect(bob)
+          .trade(
+            0,
+            convertEthToTokensBigNumber(
+              ethers.utils.parseEther("0.5"),
+              tokenInitialPrice
+            )
+          )
+      ).to.be.revertedWith("Marketplace: Trade round is not started yet");
+    });
 
-      await tokenMarketplace.connect(alice).registration(bobAddress);
+    it("should revert if user wants to buy more tokens than bid specified", async () => {
+      await mp.startSaleRound();
+      const value = ethers.utils.parseEther("0.5");
+      const tokensAmount = convertEthToTokensBigNumber(
+        value,
+        tokenInitialPrice
+      );
+      const tokenPriceAfterSale = ethers.utils.parseEther("0.00008");
+      const contractBalance = await token.balanceOf(mp.address);
 
-      await tokenMarketplace.connect(alice).buyOnSaleRound({
-        value: amount,
+      await mp.connect(bob).buyToken({
+        value,
       });
+      await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
+      await ethers.provider.send("evm_mine", []);
+      await mp.endSaleRound();
 
-      expect(
-        await token.balanceOf(tokenMarketplace.address),
-        "Contract balance does not change"
-      ).to.be.equal(contractBalance.sub(await token.balanceOf(bob.address)));
+      await token.connect(bob).approve(mp.address, tokensAmount);
 
-      expect(
-        await token.balanceOf(bob.address),
-        `User balance becomes ${convertEthToTokensBigNumber(
-          amount,
-          tokenInitialPrice
-        )}`
-      ).to.be.equal(convertEthToTokensBigNumber(amount, tokenInitialPrice));
+      await mp.connect(bob).createBid(tokensAmount, tokenPriceAfterSale);
+
+      await expect(
+        mp.connect(alice).trade(0, tokensAmount.add(tokensAmount), {
+          value: convertTokensToEthBigNumber(tokensAmount, tokenPriceAfterSale),
+        })
+      ).to.be.revertedWith(
+        "Marketplace: You can't buy more tokens than bid specified"
+      );
     });
-    /* -------------------------------------------------------------------------- */
+
+    it("should top up user balance", async () => {
+      await mp.startSaleRound();
+      const value = ethers.utils.parseEther("0.5");
+      const tokensAmount = convertEthToTokensBigNumber(
+        value,
+        tokenInitialPrice
+      );
+      const tokenPriceAfterSale = ethers.utils.parseEther("0.00008");
+      const tradeEthValue = convertTokensToEthBigNumber(
+        tokensAmount,
+        tokenPriceAfterSale
+      );
+
+      await mp.connect(bob).buyToken({
+        value,
+      });
+      await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
+      await ethers.provider.send("evm_mine", []);
+      await mp.endSaleRound();
+
+      await token.connect(bob).approve(mp.address, tokensAmount);
+
+      await mp.connect(bob).createBid(tokensAmount, tokenPriceAfterSale);
+
+      await expect(
+        await mp.connect(alice).trade(0, tokensAmount, {
+          value: tradeEthValue,
+        })
+      ).to.changeEtherBalances(
+        [alice, bob, mp],
+        [
+          (-tradeEthValue).toString(),
+          tradeEthValue.div(100).mul(95),
+          tradeEthValue.sub(tradeEthValue.div(100).mul(95)),
+        ]
+      );
+    });
   });
 
   /* -------------------------------------------------------------------------- */
@@ -371,42 +477,40 @@ describe("TokenMarketplace", () => {
 
   describe("createBid", async () => {
     it("should revert if not enough tokens to sell", async () => {
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
 
-      const amount = ethers.utils.parseEther("0.02");
+      const value = ethers.utils.parseEther("0.02");
       const smallAmount = ethers.utils.parseEther("0.01");
 
-      await tokenMarketplace.connect(bob).buyOnSaleRound({
+      await mp.connect(bob).buyToken({
         value: smallAmount,
       });
 
-      const tokensAmount = convertEthToTokensString(amount, tokenInitialPrice);
+      const tokensAmount = convertEthToTokensString(value, tokenInitialPrice);
 
       await expect(
-        tokenMarketplace.connect(bob).createBid(tokensAmount, tokenInitialPrice)
-      ).to.be.revertedWith("Marketpalce: You don't have enough tokens to sell");
+        mp.connect(bob).createBid(tokensAmount, tokenInitialPrice)
+      ).to.be.revertedWith("Marketplace: You don't have enough tokens to sell");
     });
 
     it("should be able to create a bid", async () => {
-      const amount = ethers.utils.parseEther("0.02");
+      const value = ethers.utils.parseEther("0.02");
       const tokensAmount = convertEthToTokensBigNumber(
-        amount,
+        value,
         tokenInitialPrice
       );
 
-      await tokenMarketplace.startSaleRound();
+      await mp.startSaleRound();
 
-      await tokenMarketplace.connect(bob).buyOnSaleRound({
-        value: amount,
+      await mp.connect(bob).buyToken({
+        value: value,
       });
 
-      await token.connect(bob).approve(tokenMarketplace.address, tokensAmount);
+      await token.connect(bob).approve(mp.address, tokensAmount);
 
-      await tokenMarketplace
-        .connect(bob)
-        .createBid(tokensAmount, tokenInitialPrice);
+      await mp.connect(bob).createBid(tokensAmount, tokenInitialPrice);
 
-      const bids = await tokenMarketplace.getBids();
+      const bids = await mp.getBids();
       const [_seller, _amount, _price] = bids[0];
 
       expect([_seller, _amount, _price]).to.deep.equal([
@@ -414,47 +518,6 @@ describe("TokenMarketplace", () => {
         tokensAmount,
         tokenInitialPrice,
       ]);
-    });
-  });
-
-  describe("trade", async () => {
-    it("should be able to buy tokens", async () => {
-      const amount = ethers.utils.parseEther("0.5");
-      const smallAmount = ethers.utils.parseEther("0.1");
-      const sellPrice = ethers.utils.parseEther("0.00008");
-      const tokensAmount = convertEthToTokensBigNumber(
-        amount,
-        tokenInitialPrice
-      );
-      const smallTokensAmount = convertEthToTokensBigNumber(
-        smallAmount,
-        tokenInitialPrice
-      );
-
-      await tokenMarketplace.startSaleRound();
-
-      await tokenMarketplace.connect(bob).buyOnSaleRound({
-        value: amount,
-        ...gasOptions,
-      });
-
-      await token.connect(bob).approve(tokenMarketplace.address, tokensAmount);
-
-      await tokenMarketplace.connect(bob).createBid(tokensAmount, sellPrice);
-
-      const balanceBobBeforeSale = await bob.getBalance();
-
-      await tokenMarketplace.connect(alice).trade(0, smallTokensAmount, {
-        value: convertTokensToEthBigNumber(smallTokensAmount, sellPrice),
-      });
-
-      const balanceBobAfterSale = await bob.getBalance();
-
-      expect(balanceBobAfterSale).to.be.equal(
-        balanceBobBeforeSale.add(
-          convertTokensToEthBigNumber(smallTokensAmount, sellPrice)
-        )
-      );
     });
   });
 });

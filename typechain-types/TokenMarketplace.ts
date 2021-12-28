@@ -33,7 +33,7 @@ export type BidStructOutput = [string, BigNumber, BigNumber] & {
 export interface TokenMarketplaceInterface extends utils.Interface {
   functions: {
     "DEFAULT_ADMIN_ROLE()": FunctionFragment;
-    "buyOnSaleRound()": FunctionFragment;
+    "buyToken()": FunctionFragment;
     "cancelAllBids()": FunctionFragment;
     "cancelBid(uint256)": FunctionFragment;
     "createBid(uint256,uint256)": FunctionFragment;
@@ -43,7 +43,7 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     "getRoleAdmin(bytes32)": FunctionFragment;
     "grantRole(bytes32,address)": FunctionFragment;
     "hasRole(bytes32,address)": FunctionFragment;
-    "referrals(address,uint256)": FunctionFragment;
+    "paused()": FunctionFragment;
     "registration(address)": FunctionFragment;
     "registrations(address)": FunctionFragment;
     "renounceRole(bytes32,address)": FunctionFragment;
@@ -59,10 +59,7 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     functionFragment: "DEFAULT_ADMIN_ROLE",
     values?: undefined
   ): string;
-  encodeFunctionData(
-    functionFragment: "buyOnSaleRound",
-    values?: undefined
-  ): string;
+  encodeFunctionData(functionFragment: "buyToken", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "cancelAllBids",
     values?: undefined
@@ -96,10 +93,7 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     functionFragment: "hasRole",
     values: [BytesLike, string]
   ): string;
-  encodeFunctionData(
-    functionFragment: "referrals",
-    values: [string, BigNumberish]
-  ): string;
+  encodeFunctionData(functionFragment: "paused", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "registration",
     values: [string]
@@ -141,10 +135,7 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     functionFragment: "DEFAULT_ADMIN_ROLE",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "buyOnSaleRound",
-    data: BytesLike
-  ): Result;
+  decodeFunctionResult(functionFragment: "buyToken", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "cancelAllBids",
     data: BytesLike
@@ -166,7 +157,7 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "grantRole", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "hasRole", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "referrals", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "paused", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "registration",
     data: BytesLike
@@ -201,10 +192,12 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     "BidClosed(address)": EventFragment;
     "BidCreated(address,uint256,uint256)": EventFragment;
     "BuyToken(address,uint256,uint256)": EventFragment;
+    "Paused(address)": EventFragment;
     "RoleAdminChanged(bytes32,bytes32,bytes32)": EventFragment;
     "RoleGranted(bytes32,address,address)": EventFragment;
     "RoleRevoked(bytes32,address,address)": EventFragment;
     "Trade(address,address,uint256,uint256)": EventFragment;
+    "Unpaused(address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "AllBidsCanceled"): EventFragment;
@@ -212,10 +205,12 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   getEvent(nameOrSignatureOrTopic: "BidClosed"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "BidCreated"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "BuyToken"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Paused"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleAdminChanged"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleGranted"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleRevoked"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Trade"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Unpaused"): EventFragment;
 }
 
 export type AllBidsCanceledEvent = TypedEvent<[string], { _msgSender: string }>;
@@ -247,6 +242,10 @@ export type BuyTokenEvent = TypedEvent<
 
 export type BuyTokenEventFilter = TypedEventFilter<BuyTokenEvent>;
 
+export type PausedEvent = TypedEvent<[string], { account: string }>;
+
+export type PausedEventFilter = TypedEventFilter<PausedEvent>;
+
 export type RoleAdminChangedEvent = TypedEvent<
   [string, string, string],
   { role: string; previousAdminRole: string; newAdminRole: string }
@@ -275,6 +274,10 @@ export type TradeEvent = TypedEvent<
 >;
 
 export type TradeEventFilter = TypedEventFilter<TradeEvent>;
+
+export type UnpausedEvent = TypedEvent<[string], { account: string }>;
+
+export type UnpausedEventFilter = TypedEventFilter<UnpausedEvent>;
 
 export interface TokenMarketplace extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
@@ -305,7 +308,7 @@ export interface TokenMarketplace extends BaseContract {
   functions: {
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<[string]>;
 
-    buyOnSaleRound(
+    buyToken(
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -348,11 +351,7 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[boolean]>;
 
-    referrals(
-      arg0: string,
-      arg1: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<[string]>;
+    paused(overrides?: CallOverrides): Promise<[boolean]>;
 
     registration(
       _referral: string,
@@ -416,7 +415,7 @@ export interface TokenMarketplace extends BaseContract {
 
   DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
 
-  buyOnSaleRound(
+  buyToken(
     overrides?: PayableOverrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -459,11 +458,7 @@ export interface TokenMarketplace extends BaseContract {
     overrides?: CallOverrides
   ): Promise<boolean>;
 
-  referrals(
-    arg0: string,
-    arg1: BigNumberish,
-    overrides?: CallOverrides
-  ): Promise<string>;
+  paused(overrides?: CallOverrides): Promise<boolean>;
 
   registration(
     _referral: string,
@@ -527,7 +522,7 @@ export interface TokenMarketplace extends BaseContract {
   callStatic: {
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
 
-    buyOnSaleRound(overrides?: CallOverrides): Promise<void>;
+    buyToken(overrides?: CallOverrides): Promise<void>;
 
     cancelAllBids(overrides?: CallOverrides): Promise<void>;
 
@@ -559,11 +554,7 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<boolean>;
 
-    referrals(
-      arg0: string,
-      arg1: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<string>;
+    paused(overrides?: CallOverrides): Promise<boolean>;
 
     registration(_referral: string, overrides?: CallOverrides): Promise<void>;
 
@@ -655,6 +646,9 @@ export interface TokenMarketplace extends BaseContract {
       _price?: null
     ): BuyTokenEventFilter;
 
+    "Paused(address)"(account?: null): PausedEventFilter;
+    Paused(account?: null): PausedEventFilter;
+
     "RoleAdminChanged(bytes32,bytes32,bytes32)"(
       role?: BytesLike | null,
       previousAdminRole?: BytesLike | null,
@@ -700,12 +694,15 @@ export interface TokenMarketplace extends BaseContract {
       _amount?: null,
       _price?: null
     ): TradeEventFilter;
+
+    "Unpaused(address)"(account?: null): UnpausedEventFilter;
+    Unpaused(account?: null): UnpausedEventFilter;
   };
 
   estimateGas: {
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<BigNumber>;
 
-    buyOnSaleRound(
+    buyToken(
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -751,11 +748,7 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    referrals(
-      arg0: string,
-      arg1: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
+    paused(overrides?: CallOverrides): Promise<BigNumber>;
 
     registration(
       _referral: string,
@@ -807,7 +800,7 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    buyOnSaleRound(
+    buyToken(
       overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -853,11 +846,7 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    referrals(
-      arg0: string,
-      arg1: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
+    paused(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     registration(
       _referral: string,
