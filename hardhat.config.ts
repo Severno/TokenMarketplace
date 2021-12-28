@@ -8,7 +8,7 @@ import "hardhat-contract-sizer";
 import { HardhatUserConfig } from "hardhat/types/config";
 import { getConfig } from "./utils/networks";
 
-const settings = getConfig("rinkeby");
+const settings = getConfig("bsc_testnet");
 
 /**
  * @type import('hardhat/config').HardhatUserConfig

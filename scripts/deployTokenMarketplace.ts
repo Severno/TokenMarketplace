@@ -5,7 +5,7 @@ async function main() {
     "TokenMarketplace"
   );
   const tokenMarketplace = await TokenMarketplace.deploy(
-    "0xaa6DBD57DC168B8BC1BE2B273582486ed1Ea5Fb4"
+    "0x47d57944afc78275230452ad3c22eda6600d9062"
   );
 
   console.log("TokenMarketplace deployed to:", tokenMarketplace.address);
