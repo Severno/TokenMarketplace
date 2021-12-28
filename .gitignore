@@ -15,4 +15,4 @@ artifacts
 coverage.json
 coverage/
 docs/
-.DS_Store
+.DS_Store/
