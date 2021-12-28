@@ -2,11 +2,13 @@ import "@typechain/hardhat";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
 import "solidity-coverage";
+import "hardhat-docgen";
+import "hardhat-contract-sizer";
 
 import { HardhatUserConfig } from "hardhat/types/config";
 import { getConfig } from "./utils/networks";
 
-const settings = getConfig("rinkeby_testnet");
+const settings = getConfig("rinkeby");
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
@@ -16,7 +18,6 @@ const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.11",
     settings: {
-      viaIR: true,
       optimizer: {
         enabled: true,
         runs: 200,
@@ -39,10 +40,9 @@ const config: HardhatUserConfig = {
       gasPrice: 20000000000,
       accounts: { mnemonic: settings.mnemonic },
     },
-    rinkeby_testnet: {
+    rinkeby: {
       url: "https://rinkeby.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
       chainId: 4,
-      gasPrice: 20000000,
       accounts: { mnemonic: settings.mnemonic },
     },
   },
@@ -54,6 +54,16 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     timeout: 10000,
+  },
+  docgen: {
+    path: "./docs",
+    clear: true,
+    runOnCompile: true,
+  },
+  contractSizer: {
+    alphaSort: true,
+    runOnCompile: true,
+    disambiguatePaths: true,
   },
 };
 

@@ -5,9 +5,13 @@ dist
 .env
 .env-bsc_testnet
 .env-rinkeby_testnet
+.env-rinkeby
 .env-localhost
 .env-hardhat
 cache
 artifacts
 .vscode
 .idea
+coverage.json
+coverage/
+docs/

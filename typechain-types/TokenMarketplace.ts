@@ -33,8 +33,8 @@ export type BidStructOutput = [string, BigNumber, BigNumber] & {
 export interface TokenMarketplaceInterface extends utils.Interface {
   functions: {
     "DEFAULT_ADMIN_ROLE()": FunctionFragment;
+    "bids(uint256)": FunctionFragment;
     "buyToken()": FunctionFragment;
-    "cancelAllBids()": FunctionFragment;
     "cancelBid(uint256)": FunctionFragment;
     "createBid(uint256,uint256)": FunctionFragment;
     "endSaleRound()": FunctionFragment;
@@ -48,22 +48,19 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     "registrations(address)": FunctionFragment;
     "renounceRole(bytes32,address)": FunctionFragment;
     "revokeRole(bytes32,address)": FunctionFragment;
-    "saleRounds(uint256)": FunctionFragment;
+    "saleRounds(uint8)": FunctionFragment;
     "startSaleRound()": FunctionFragment;
     "supportsInterface(bytes4)": FunctionFragment;
     "trade(uint256,uint256)": FunctionFragment;
-    "tradeRounds(uint256)": FunctionFragment;
+    "tradeRounds(uint8)": FunctionFragment;
   };
 
   encodeFunctionData(
     functionFragment: "DEFAULT_ADMIN_ROLE",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "bids", values: [BigNumberish]): string;
   encodeFunctionData(functionFragment: "buyToken", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "cancelAllBids",
-    values?: undefined
-  ): string;
   encodeFunctionData(
     functionFragment: "cancelBid",
     values: [BigNumberish]
@@ -135,11 +132,8 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     functionFragment: "DEFAULT_ADMIN_ROLE",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "bids", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "buyToken", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "cancelAllBids",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "cancelBid", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "createBid", data: BytesLike): Result;
   decodeFunctionResult(
@@ -192,10 +186,14 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     "BidClosed(address)": EventFragment;
     "BidCreated(address,uint256,uint256)": EventFragment;
     "BuyToken(address,uint256,uint256)": EventFragment;
+    "EndSaleRound(uint8,uint256)": EventFragment;
+    "EndTradeRound(uint8,uint256)": EventFragment;
     "Paused(address)": EventFragment;
+    "Registered(address,address)": EventFragment;
     "RoleAdminChanged(bytes32,bytes32,bytes32)": EventFragment;
     "RoleGranted(bytes32,address,address)": EventFragment;
     "RoleRevoked(bytes32,address,address)": EventFragment;
+    "StartSaleRound(uint8,uint256)": EventFragment;
     "Trade(address,address,uint256,uint256)": EventFragment;
     "Unpaused(address)": EventFragment;
   };
@@ -205,10 +203,14 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   getEvent(nameOrSignatureOrTopic: "BidClosed"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "BidCreated"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "BuyToken"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "EndSaleRound"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "EndTradeRound"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Paused"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Registered"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleAdminChanged"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleGranted"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleRevoked"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "StartSaleRound"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Trade"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Unpaused"): EventFragment;
 }
@@ -219,7 +221,7 @@ export type AllBidsCanceledEventFilter = TypedEventFilter<AllBidsCanceledEvent>;
 
 export type BidCanceledEvent = TypedEvent<
   [string, BigNumber],
-  { _msgSender: string; index: BigNumber }
+  { _msgSender: string; _index: BigNumber }
 >;
 
 export type BidCanceledEventFilter = TypedEventFilter<BidCanceledEvent>;
@@ -242,9 +244,30 @@ export type BuyTokenEvent = TypedEvent<
 
 export type BuyTokenEventFilter = TypedEventFilter<BuyTokenEvent>;
 
+export type EndSaleRoundEvent = TypedEvent<
+  [number, BigNumber],
+  { _round: number; _tradeAmount: BigNumber }
+>;
+
+export type EndSaleRoundEventFilter = TypedEventFilter<EndSaleRoundEvent>;
+
+export type EndTradeRoundEvent = TypedEvent<
+  [number, BigNumber],
+  { _round: number; _tradeAmount: BigNumber }
+>;
+
+export type EndTradeRoundEventFilter = TypedEventFilter<EndTradeRoundEvent>;
+
 export type PausedEvent = TypedEvent<[string], { account: string }>;
 
 export type PausedEventFilter = TypedEventFilter<PausedEvent>;
+
+export type RegisteredEvent = TypedEvent<
+  [string, string],
+  { _msgSender: string; referral: string }
+>;
+
+export type RegisteredEventFilter = TypedEventFilter<RegisteredEvent>;
 
 export type RoleAdminChangedEvent = TypedEvent<
   [string, string, string],
@@ -267,6 +290,13 @@ export type RoleRevokedEvent = TypedEvent<
 >;
 
 export type RoleRevokedEventFilter = TypedEventFilter<RoleRevokedEvent>;
+
+export type StartSaleRoundEvent = TypedEvent<
+  [number, BigNumber],
+  { _round: number; _minted: BigNumber }
+>;
+
+export type StartSaleRoundEventFilter = TypedEventFilter<StartSaleRoundEvent>;
 
 export type TradeEvent = TypedEvent<
   [string, string, BigNumber, BigNumber],
@@ -308,12 +338,19 @@ export interface TokenMarketplace extends BaseContract {
   functions: {
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<[string]>;
 
+    bids(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<
+      [string, BigNumber, BigNumber] & {
+        seller: string;
+        amount: BigNumber;
+        price: BigNumber;
+      }
+    >;
+
     buyToken(
       overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    cancelAllBids(
-      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
     cancelBid(
@@ -415,12 +452,19 @@ export interface TokenMarketplace extends BaseContract {
 
   DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
 
+  bids(
+    arg0: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<
+    [string, BigNumber, BigNumber] & {
+      seller: string;
+      amount: BigNumber;
+      price: BigNumber;
+    }
+  >;
+
   buyToken(
     overrides?: PayableOverrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  cancelAllBids(
-    overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   cancelBid(
@@ -522,9 +566,18 @@ export interface TokenMarketplace extends BaseContract {
   callStatic: {
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
 
-    buyToken(overrides?: CallOverrides): Promise<void>;
+    bids(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<
+      [string, BigNumber, BigNumber] & {
+        seller: string;
+        amount: BigNumber;
+        price: BigNumber;
+      }
+    >;
 
-    cancelAllBids(overrides?: CallOverrides): Promise<void>;
+    buyToken(overrides?: CallOverrides): Promise<void>;
 
     cancelBid(_index: BigNumberish, overrides?: CallOverrides): Promise<void>;
 
@@ -617,9 +670,9 @@ export interface TokenMarketplace extends BaseContract {
 
     "BidCanceled(address,uint256)"(
       _msgSender?: null,
-      index?: null
+      _index?: null
     ): BidCanceledEventFilter;
-    BidCanceled(_msgSender?: null, index?: null): BidCanceledEventFilter;
+    BidCanceled(_msgSender?: null, _index?: null): BidCanceledEventFilter;
 
     "BidClosed(address)"(_msgSender?: null): BidClosedEventFilter;
     BidClosed(_msgSender?: null): BidClosedEventFilter;
@@ -646,8 +699,26 @@ export interface TokenMarketplace extends BaseContract {
       _price?: null
     ): BuyTokenEventFilter;
 
+    "EndSaleRound(uint8,uint256)"(
+      _round?: null,
+      _tradeAmount?: null
+    ): EndSaleRoundEventFilter;
+    EndSaleRound(_round?: null, _tradeAmount?: null): EndSaleRoundEventFilter;
+
+    "EndTradeRound(uint8,uint256)"(
+      _round?: null,
+      _tradeAmount?: null
+    ): EndTradeRoundEventFilter;
+    EndTradeRound(_round?: null, _tradeAmount?: null): EndTradeRoundEventFilter;
+
     "Paused(address)"(account?: null): PausedEventFilter;
     Paused(account?: null): PausedEventFilter;
+
+    "Registered(address,address)"(
+      _msgSender?: null,
+      referral?: null
+    ): RegisteredEventFilter;
+    Registered(_msgSender?: null, referral?: null): RegisteredEventFilter;
 
     "RoleAdminChanged(bytes32,bytes32,bytes32)"(
       role?: BytesLike | null,
@@ -682,6 +753,12 @@ export interface TokenMarketplace extends BaseContract {
       sender?: string | null
     ): RoleRevokedEventFilter;
 
+    "StartSaleRound(uint8,uint256)"(
+      _round?: null,
+      _minted?: null
+    ): StartSaleRoundEventFilter;
+    StartSaleRound(_round?: null, _minted?: null): StartSaleRoundEventFilter;
+
     "Trade(address,address,uint256,uint256)"(
       _msgSender?: null,
       _seller?: null,
@@ -702,12 +779,10 @@ export interface TokenMarketplace extends BaseContract {
   estimateGas: {
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<BigNumber>;
 
+    bids(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
+
     buyToken(
       overrides?: PayableOverrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    cancelAllBids(
-      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     cancelBid(
@@ -800,12 +875,13 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    buyToken(
-      overrides?: PayableOverrides & { from?: string | Promise<string> }
+    bids(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    cancelAllBids(
-      overrides?: Overrides & { from?: string | Promise<string> }
+    buyToken(
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     cancelBid(

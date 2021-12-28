@@ -10,22 +10,16 @@ import hre from "hardhat";
 
 const { ethers } = hre;
 
-// AccessControl roles in bytes32 string
-// DEFAULT_ADMIN_ROLE, MINTER_ROLE, BURNER_ROLE
-
 const ADMIN_ROLE = ethers.utils.id("ADMIN_ROLE");
 const MINTER_ROLE = ethers.utils.id("MINTER_ROLE");
 const BURNER_ROLE = ethers.utils.id("BURNER_ROLE");
 const zeroAddress = "0x0000000000000000000000000000000000000000";
 
-const multiplier = ethers.utils.parseUnits("1", 18);
-const round = 0;
 const tokenInitialPrice = ethers.utils.parseEther("0.00001"); // 0,00001 eth
-const threeDaysInSeconds = 3 * 24 * 3600;
+const threeDaysInSeconds = 3 * 24 * 3600; // 3 days
 
 const name = "Academy Token";
 const symbol = "ACDM";
-const initialSupply = "1000";
 const decimals = 18;
 
 let Token: AcademyToken__factory;
@@ -72,23 +66,14 @@ function convertEthToTokensBigNumber(
   return _amount.div(_price);
 }
 
-function getTransactionFee(tx: Transaction): BigNumber {
-  return tx?.gasPrice || BigNumber.from(0);
-}
-
 describe("TokenMarketplace", () => {
   beforeEach(async function () {
-    const initialAmountMintToUser = ethers.utils.parseUnits("1", decimals);
     provider = ethers.getDefaultProvider();
 
     [owner, alice, bob, smith] = await ethers.getSigners();
 
     Token = await ethers.getContractFactory("AcademyToken");
     token = await Token.deploy(name, symbol);
-
-    // token.mint(owner.address, initialAmountMintToUser);
-    // token.mint(bob.address, initialAmountMintToUser);
-    // token.mint(alice.address, initialAmountMintToUser);
 
     TokenMarketplace = await ethers.getContractFactory("TokenMarketplace");
     mp = await TokenMarketplace.deploy(token.address);
@@ -127,16 +112,14 @@ describe("TokenMarketplace", () => {
     /* -------------------------------------------------------------------------- */
     it("should revert if zero address", async () => {
       await expect(mp.registration(zeroAddress)).to.be.revertedWith(
-        "Marketplace: Referral can't be a zero address"
+        "Referral can't be a zero address"
       );
     });
     /* -------------------------------------------------------------------------- */
     it("should revert if referral is the user", async () => {
       await expect(
         mp.connect(bob).registration(bob.address)
-      ).to.be.revertedWith(
-        "Marketplace: You can't choose yourself as a referral"
-      );
+      ).to.be.revertedWith("You can't choose yourself as a referral");
     });
 
     /* -------------------------------------------------------------------------- */
@@ -155,7 +138,14 @@ describe("TokenMarketplace", () => {
   describe("startSaleRound", async () => {
     it("should revert if is not an admin", async () => {
       await expect(mp.connect(bob).startSaleRound()).to.be.revertedWith(
-        "Marketplace: You are not an admin"
+        "You are not an admin"
+      );
+    });
+
+    it("should revert if tries to start new round while previouse is not finished yet", async () => {
+      await mp.startSaleRound();
+      await expect(mp.startSaleRound()).to.be.revertedWith(
+        "You can't start new round while previouse is not finished yet"
       );
     });
 
@@ -216,7 +206,7 @@ describe("TokenMarketplace", () => {
       await mp.startSaleRound();
 
       await expect(mp.connect(bob).endSaleRound()).to.be.revertedWith(
-        "Marketplace: You are not an admin"
+        "You are not an admin"
       );
     });
     /* -------------------------------------------------------------------------- */
@@ -399,7 +389,7 @@ describe("TokenMarketplace", () => {
               tokenInitialPrice
             )
           )
-      ).to.be.revertedWith("Marketplace: Trade round is not started yet");
+      ).to.be.revertedWith("Trade round is not started yet");
     });
 
     it("should revert if user wants to buy more tokens than bid specified", async () => {
@@ -427,9 +417,7 @@ describe("TokenMarketplace", () => {
         mp.connect(alice).trade(0, tokensAmount.add(tokensAmount), {
           value: convertTokensToEthBigNumber(tokensAmount, tokenPriceAfterSale),
         })
-      ).to.be.revertedWith(
-        "Marketplace: You can't buy more tokens than bid specified"
-      );
+      ).to.be.revertedWith("You can't buy more tokens than bid specified");
     });
 
     it("should top up user balance", async () => {
@@ -490,7 +478,7 @@ describe("TokenMarketplace", () => {
 
       await expect(
         mp.connect(bob).createBid(tokensAmount, tokenInitialPrice)
-      ).to.be.revertedWith("Marketplace: You don't have enough tokens to sell");
+      ).to.be.revertedWith("You don't have enough tokens to sell");
     });
 
     it("should be able to create a bid", async () => {
@@ -518,6 +506,60 @@ describe("TokenMarketplace", () => {
         tokensAmount,
         tokenInitialPrice,
       ]);
+    });
+  });
+
+  describe("cancelBid", async () => {
+    it("should cancel bid", async () => {
+      await mp.startSaleRound();
+
+      const value = ethers.utils.parseEther("0.5");
+
+      await mp.connect(bob).buyToken({
+        value,
+      });
+
+      const tokensAmount = convertEthToTokensString(value, tokenInitialPrice);
+
+      await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
+      await ethers.provider.send("evm_mine", []);
+      await mp.endSaleRound();
+
+      await token.connect(bob).approve(mp.address, tokensAmount);
+
+      await mp.connect(bob).createBid(tokensAmount, tokenInitialPrice);
+
+      await expect(mp.connect(alice).cancelBid(0)).to.be.revertedWith(
+        "You're not a token seller"
+      );
+    });
+
+    it("should delete canceled bid", async () => {
+      await mp.startSaleRound();
+
+      const value = ethers.utils.parseEther("0.02");
+
+      await mp.connect(bob).buyToken({
+        value,
+      });
+
+      const tokensAmount = convertEthToTokensString(value, tokenInitialPrice);
+
+      await ethers.provider.send("evm_increaseTime", [threeDaysInSeconds]);
+      await ethers.provider.send("evm_mine", []);
+      await mp.endSaleRound();
+      await token.connect(bob).approve(mp.address, tokensAmount);
+      await mp.connect(bob).createBid(tokensAmount, tokenInitialPrice);
+
+      const [seller] = await mp.bids(0);
+
+      expect(seller).to.be.equal(bobAddress);
+
+      await mp.connect(bob).cancelBid(0);
+
+      const [zeroSeller] = await mp.bids(0);
+
+      expect(zeroSeller).to.be.equal(zeroAddress);
     });
   });
 });

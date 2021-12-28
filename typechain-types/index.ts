@@ -10,6 +10,7 @@ export type { IERC20 } from "./IERC20";
 export type { ERC165 } from "./ERC165";
 export type { IERC165 } from "./IERC165";
 export type { AcademyToken } from "./AcademyToken";
+export type { ITokenMarketplace } from "./ITokenMarketplace";
 export type { TokenMarketplace } from "./TokenMarketplace";
 
 export { AccessControl__factory } from "./factories/AccessControl__factory";
@@ -21,4 +22,5 @@ export { IERC20__factory } from "./factories/IERC20__factory";
 export { ERC165__factory } from "./factories/ERC165__factory";
 export { IERC165__factory } from "./factories/IERC165__factory";
 export { AcademyToken__factory } from "./factories/AcademyToken__factory";
+export { ITokenMarketplace__factory } from "./factories/ITokenMarketplace__factory";
 export { TokenMarketplace__factory } from "./factories/TokenMarketplace__factory";

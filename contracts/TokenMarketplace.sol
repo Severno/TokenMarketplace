@@ -1,74 +1,58 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.11;
+pragma solidity ^0.8.11;
 
 import "./AcademyToken.sol";
+import "./ITokenMarketplace.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "hardhat/console.sol";
 
-contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
-    using EnumerableMap for EnumerableMap.UintToAddressMap;
-
+contract TokenMarketplace is
+    ITokenMarketplace,
+    AccessControl,
+    Pausable,
+    ReentrancyGuard
+{
     AcademyToken token;
 
     uint256 multiplier = 1 ether;
-    uint256 round = 0;
-    uint256 roundTime = 3 days;
+    uint8 round = 0;
+    uint32 roundTime = 3 days;
     uint256 tokenInitialPrice = 0.00001 ether; // 0,00001 eth
 
-    mapping(uint256 => SaleRoundSettings) public saleRounds;
-    mapping(uint256 => TradeRoundSettings) public tradeRounds;
+    mapping(uint8 => SaleRoundSettings) public saleRounds;
+    mapping(uint8 => TradeRoundSettings) public tradeRounds;
+    // Connect msg.sender to referral
     mapping(address => address) public registrations;
 
-    Bid[] bids;
+    Bid[] public bids;
 
     struct Bid {
-        address seller;
-        uint256 amount; // tokens amount
-        uint256 price; // eth
+        address seller; // token seller
+        uint256 amount; // tokens amount to sell
+        uint256 price; // ETH price of one token
     }
 
     struct SaleRoundSettings {
         uint256 maxTradeAmount; // ETH max trade amount
         uint256 tradeAmount; // ETH trade amount
-        uint256 tokenPrice; // ACDM token
-        uint256 tokensAmount;
-        uint256 startTime;
-        bool isActive;
+        uint256 tokenPrice; // ACDM token price
+        uint256 tokensAmount; // ACDM token amount
+        uint256 startTime; // block.timestamp time
+        bool isActive; // isActiveRound
     }
 
     struct TradeRoundSettings {
         uint256 tradeAmount; // ETH trade amount
-        uint256 startTime;
-        bool isActive;
+        uint256 startTime; // block.timestamp time
+        bool isActive; // isActiveRound
     }
-
-    event BidCanceled(address _msgSender, uint256 index);
-    event BidClosed(address _msgSender);
-    event AllBidsCanceled(address _msgSender);
-    event BidCreated(address _msgSender, uint256 _amount, uint256 _price);
-    event Trade(
-        address _msgSender,
-        address _seller,
-        uint256 _amount,
-        uint256 _price
-    );
-    event BuyToken(address _msgSender, uint256 _amount, uint256 _price);
-
-    // modifier isActiveRound() {
-    //     require(
-    //         saleRounds[round].startTime + roundTime < block.timestamp,
-    //         "Marketplace: Sale round is over"
-    //     );
-    //     _;
-    // }
 
     modifier isAdmin() {
         require(
             hasRole(DEFAULT_ADMIN_ROLE, _msgSender()),
-            "Marketplace: You are not an admin"
+            "You are not an admin"
         );
         _;
     }
@@ -90,31 +74,50 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
 
     /* ANCHOR Registration */
 
-    function registration(address _referral) external {
-        require(
-            _referral != address(0),
-            "Marketplace: Referral can't be a zero address"
-        );
+    /** @dev Registering a user with a referral
+     * @param _referral referral address(metamask).
+     */
+    function registration(address _referral)
+        external
+        whenNotPaused
+        nonReentrant
+    {
+        require(_referral != address(0), "Referral can't be a zero address");
 
         require(
             _referral != msg.sender,
-            "Marketplace: You can't choose yourself as a referral"
+            "You can't choose yourself as a referral"
         );
 
         registrations[msg.sender] = _referral;
+
+        emit Registered(msg.sender, _referral);
     }
 
     /* ANCHOR Sale Round */
 
+    /** @dev Start sale round and mint a number of tokens
+     * depending on the volume of trades in the trade round
+     */
     function startSaleRound() external isAdmin {
+        require(
+            !saleRounds[round].isActive,
+            "You can't start new round while previouse is not finished yet"
+        );
+
         // Set first round in contstructor. All all other rounds gonna be settuped here
         if (round > 0) setupNewSaleRound();
 
         saleRounds[round].isActive = true;
 
         token.mint(address(this), saleRounds[round].tokensAmount);
+
+        emit StartSaleRound(round, saleRounds[round].tokensAmount);
     }
 
+    /** @dev Finish the sale round, burn unredeemed tokens,
+     * and immediately begin the trade round
+     */
     function endSaleRound() public isAdmin {
         // Сan finish the round early if all tokens have been redeemed
         if (!isFullfilledMaxTrade()) {
@@ -129,8 +132,12 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
 
         burnUnredeemedTokens();
         startTradeRound();
+
+        emit EndSaleRound(round, saleRounds[round].tradeAmount);
     }
 
+    /** @dev Burn unredeemed tokens
+     */
     function burnUnredeemedTokens() internal {
         uint256 burnAmount = saleRounds[round].tokensAmount -
             saleRounds[round].tradeAmount;
@@ -140,14 +147,14 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
         }
     }
 
+    /** @dev Take the data from the previous sale and trade round, 
+        count the maximum number of tokens to sell in the new sale round 
+     */
     function setupNewSaleRound() internal {
-        SaleRoundSettings storage prevSaleRound = saleRounds[round - 1];
-        TradeRoundSettings storage prevTradeRound = tradeRounds[round - 1];
-
         saleRounds[round].tokenPrice = getNextRoundTokenPrice(
-            (prevSaleRound.tokenPrice)
+            (saleRounds[round - 1].tokenPrice)
         );
-        saleRounds[round].maxTradeAmount = prevTradeRound.tradeAmount;
+        saleRounds[round].maxTradeAmount = tradeRounds[round - 1].tradeAmount;
         saleRounds[round].isActive = false;
         saleRounds[round].tradeAmount = 0;
         saleRounds[round].tokensAmount =
@@ -155,26 +162,33 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
             saleRounds[round].tokenPrice;
     }
 
-    function buyToken() external payable {
-        SaleRoundSettings storage settings = saleRounds[round];
-
-        uint256 amount = msg.value;
-
+    /** @dev The user can buy tokens in the sale round
+     */
+    function buyToken() external payable whenNotPaused nonReentrant {
         require(
-            settings.tradeAmount + amount <= settings.maxTradeAmount,
-            "Marketplace: The token purchase limit for this round has been reached"
+            saleRounds[round].tradeAmount + msg.value <=
+                saleRounds[round].maxTradeAmount,
+            "The token purchase limit for this round has been reached"
         );
 
         destributeTreasureForSale();
-        uint256 tokensAmount = convertEthToTokens(amount);
 
-        settings.tradeAmount += tokensAmount;
+        uint256 tokensAmount = convertEthToTokens(msg.value);
+
+        saleRounds[round].tradeAmount += tokensAmount;
 
         token.transfer(msg.sender, tokensAmount);
 
-        emit BuyToken(msg.sender, tokensAmount, settings.tokenPrice);
+        emit BuyToken(msg.sender, tokensAmount, saleRounds[round].tokenPrice);
     }
 
+    /** @dev Distribute ETH to referrals
+     * Depending on the percentage
+     * The first referral receives 5% of the user's purchase
+     * Second one gets 3%.
+     * Contract gets 92%%.
+     * If the user has no referrals specified, all 100% gets a contract
+     */
     function destributeTreasureForSale() internal {
         address referral1 = registrations[msg.sender];
         address referral2 = registrations[referral1];
@@ -193,11 +207,20 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
 
     /* ANCHOR Trade Round */
 
-    function trade(uint256 _index, uint256 _amount) external payable {
-        require(
-            tradeRounds[round].isActive,
-            "Marketplace: Trade round is not started yet"
-        );
+    /** @dev A user can buy tokens from another user in ETH.
+     * The distribution of the referral goes as follows:
+     * To the first referral - 2.5%
+     * To the second referral - 2.5%
+     * Contract - 0%
+     * If no referrals are specified, the contract gets 5%
+     */
+    function trade(uint256 _index, uint256 _amount)
+        external
+        payable
+        whenNotPaused
+        nonReentrant
+    {
+        require(tradeRounds[round].isActive, "Trade round is not started yet");
 
         Bid storage bid = bids[_index];
 
@@ -205,10 +228,10 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
 
         require(
             bid.amount >= _amount,
-            "Marketplace: You can't buy more tokens than bid specified"
+            "You can't buy more tokens than bid specified"
         );
         require(token.transfer(msg.sender, _amount));
-        require(msg.value == ethCost, "Marketplace: You don't have enough eth");
+        require(msg.value == ethCost, "You don't have enough eth");
 
         destributeTreasureForTrade();
 
@@ -225,6 +248,8 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
         tradeRounds[round].tradeAmount += ethCost;
     }
 
+    /** @dev Start trade round
+     */
     function startTradeRound() internal {
         TradeRoundSettings storage settings = tradeRounds[round];
 
@@ -232,13 +257,25 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
         settings.isActive = true;
     }
 
+    /** @dev End trade round, close all open orders and return ACDM tokens to users
+     */
     function endTradeRound() external isAdmin {
         if (bids.length > 0) {
             cancelAllBids();
         }
+
+        emit EndTradeRound(round, tradeRounds[round].tradeAmount);
+
         round++;
     }
 
+    /** @dev Distribute ETH for trade
+     * The distribution of the referral goes as follows:
+     * To the first referral - 2.5%
+     * To the second referral - 2.5%
+     * Contract - 0%
+     * If no referrals are specified, the contract gets 5%
+     */
     function destributeTreasureForTrade() private {
         uint256 _amount = msg.value;
 
@@ -256,7 +293,7 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
 
     /* ANCHOR Bids */
 
-    function cancelAllBids() public isAdmin {
+    function cancelAllBids() private {
         for (uint256 i = 0; i < bids.length; i++) {
             token.transfer(msg.sender, bids[i].amount);
         }
@@ -266,11 +303,8 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
         emit AllBidsCanceled(msg.sender);
     }
 
-    function cancelBid(uint256 _index) public {
-        require(
-            bids[_index].seller == msg.sender,
-            "Marketplace: You're not a token seller"
-        );
+    function cancelBid(uint256 _index) public whenNotPaused nonReentrant {
+        require(bids[_index].seller == msg.sender, "You're not a token seller");
 
         token.transfer(msg.sender, bids[_index].amount);
 
@@ -285,19 +319,20 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
         emit BidClosed(msg.sender);
     }
 
-    function createBid(uint256 _amount, uint256 _price) external {
+    /** @dev Create a bid to sell ACDM tokens
+     */
+    function createBid(uint256 _amount, uint256 _price)
+        external
+        whenNotPaused
+        nonReentrant
+    {
         require(
             _amount <= token.balanceOf(msg.sender),
-            "Marketplace: You don't have enough tokens to sell"
+            "You don't have enough tokens to sell"
         );
 
-        Bid memory bid = Bid({
-            seller: msg.sender,
-            amount: _amount,
-            price: _price
-        });
         token.transferFrom(msg.sender, address(this), _amount);
-        bids.push(bid);
+        bids.push(Bid({seller: msg.sender, amount: _amount, price: _price}));
 
         emit BidCreated(msg.sender, _amount, _price);
     }
@@ -319,7 +354,7 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
     /* ANCHOR Utils */
 
     function convertEthToTokens(uint256 _amount)
-        private
+        internal
         view
         returns (uint256)
     {
@@ -327,7 +362,7 @@ contract TokenMarketplace is AccessControl, Pausable, ReentrancyGuard {
     }
 
     function convertTokensToEth(uint256 _amount, uint256 _price)
-        private
+        internal
         pure
         returns (uint256)
     {
