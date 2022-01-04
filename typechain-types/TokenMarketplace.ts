@@ -43,16 +43,25 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     "getRoleAdmin(bytes32)": FunctionFragment;
     "grantRole(bytes32,address)": FunctionFragment;
     "hasRole(bytes32,address)": FunctionFragment;
+    "owner()": FunctionFragment;
+    "pause()": FunctionFragment;
     "paused()": FunctionFragment;
     "registration(address)": FunctionFragment;
     "registrations(address)": FunctionFragment;
+    "renounceOwnership()": FunctionFragment;
     "renounceRole(bytes32,address)": FunctionFragment;
     "revokeRole(bytes32,address)": FunctionFragment;
     "saleRounds(uint8)": FunctionFragment;
+    "setPercentForFirstSaleReferrer(uint256)": FunctionFragment;
+    "setPercentForSecondSaleReferrer(uint256)": FunctionFragment;
+    "setPercentForTradeReferrer(uint256)": FunctionFragment;
     "startSaleRound()": FunctionFragment;
     "supportsInterface(bytes4)": FunctionFragment;
     "trade(uint256,uint256)": FunctionFragment;
     "tradeRounds(uint8)": FunctionFragment;
+    "transferOwnership(address)": FunctionFragment;
+    "unpause()": FunctionFragment;
+    "withdraw(address)": FunctionFragment;
   };
 
   encodeFunctionData(
@@ -90,6 +99,8 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     functionFragment: "hasRole",
     values: [BytesLike, string]
   ): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(functionFragment: "pause", values?: undefined): string;
   encodeFunctionData(functionFragment: "paused", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "registration",
@@ -98,6 +109,10 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   encodeFunctionData(
     functionFragment: "registrations",
     values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "renounceOwnership",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "renounceRole",
@@ -109,6 +124,18 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "saleRounds",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setPercentForFirstSaleReferrer",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setPercentForSecondSaleReferrer",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setPercentForTradeReferrer",
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
@@ -127,6 +154,12 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     functionFragment: "tradeRounds",
     values: [BigNumberish]
   ): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
+    values: [string]
+  ): string;
+  encodeFunctionData(functionFragment: "unpause", values?: undefined): string;
+  encodeFunctionData(functionFragment: "withdraw", values: [string]): string;
 
   decodeFunctionResult(
     functionFragment: "DEFAULT_ADMIN_ROLE",
@@ -151,6 +184,8 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "grantRole", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "hasRole", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "pause", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "paused", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "registration",
@@ -161,11 +196,27 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "renounceRole",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "revokeRole", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "saleRounds", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "setPercentForFirstSaleReferrer",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setPercentForSecondSaleReferrer",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setPercentForTradeReferrer",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "startSaleRound",
     data: BytesLike
@@ -179,6 +230,12 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     functionFragment: "tradeRounds",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "unpause", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "withdraw", data: BytesLike): Result;
 
   events: {
     "AllBidsCanceled(address)": EventFragment;
@@ -188,6 +245,7 @@ export interface TokenMarketplaceInterface extends utils.Interface {
     "BuyToken(address,uint256,uint256)": EventFragment;
     "EndSaleRound(uint8,uint256)": EventFragment;
     "EndTradeRound(uint8,uint256)": EventFragment;
+    "OwnershipTransferred(address,address)": EventFragment;
     "Paused(address)": EventFragment;
     "Registered(address,address)": EventFragment;
     "RoleAdminChanged(bytes32,bytes32,bytes32)": EventFragment;
@@ -205,6 +263,7 @@ export interface TokenMarketplaceInterface extends utils.Interface {
   getEvent(nameOrSignatureOrTopic: "BuyToken"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "EndSaleRound"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "EndTradeRound"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Paused"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Registered"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "RoleAdminChanged"): EventFragment;
@@ -257,6 +316,14 @@ export type EndTradeRoundEvent = TypedEvent<
 >;
 
 export type EndTradeRoundEventFilter = TypedEventFilter<EndTradeRoundEvent>;
+
+export type OwnershipTransferredEvent = TypedEvent<
+  [string, string],
+  { previousOwner: string; newOwner: string }
+>;
+
+export type OwnershipTransferredEventFilter =
+  TypedEventFilter<OwnershipTransferredEvent>;
 
 export type PausedEvent = TypedEvent<[string], { account: string }>;
 
@@ -388,6 +455,12 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[boolean]>;
 
+    owner(overrides?: CallOverrides): Promise<[string]>;
+
+    pause(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     paused(overrides?: CallOverrides): Promise<[boolean]>;
 
     registration(
@@ -396,6 +469,10 @@ export interface TokenMarketplace extends BaseContract {
     ): Promise<ContractTransaction>;
 
     registrations(arg0: string, overrides?: CallOverrides): Promise<[string]>;
+
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
     renounceRole(
       role: BytesLike,
@@ -423,6 +500,21 @@ export interface TokenMarketplace extends BaseContract {
       }
     >;
 
+    setPercentForFirstSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    setPercentForSecondSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    setPercentForTradeReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     startSaleRound(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -448,6 +540,20 @@ export interface TokenMarketplace extends BaseContract {
         isActive: boolean;
       }
     >;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    unpause(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    withdraw(
+      _to: string,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
   };
 
   DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
@@ -502,6 +608,12 @@ export interface TokenMarketplace extends BaseContract {
     overrides?: CallOverrides
   ): Promise<boolean>;
 
+  owner(overrides?: CallOverrides): Promise<string>;
+
+  pause(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   paused(overrides?: CallOverrides): Promise<boolean>;
 
   registration(
@@ -510,6 +622,10 @@ export interface TokenMarketplace extends BaseContract {
   ): Promise<ContractTransaction>;
 
   registrations(arg0: string, overrides?: CallOverrides): Promise<string>;
+
+  renounceOwnership(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   renounceRole(
     role: BytesLike,
@@ -537,6 +653,21 @@ export interface TokenMarketplace extends BaseContract {
     }
   >;
 
+  setPercentForFirstSaleReferrer(
+    _percent: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  setPercentForSecondSaleReferrer(
+    _percent: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  setPercentForTradeReferrer(
+    _percent: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   startSaleRound(
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -562,6 +693,20 @@ export interface TokenMarketplace extends BaseContract {
       isActive: boolean;
     }
   >;
+
+  transferOwnership(
+    newOwner: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  unpause(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  withdraw(
+    _to: string,
+    overrides?: PayableOverrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   callStatic: {
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
@@ -607,11 +752,17 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<boolean>;
 
+    owner(overrides?: CallOverrides): Promise<string>;
+
+    pause(overrides?: CallOverrides): Promise<void>;
+
     paused(overrides?: CallOverrides): Promise<boolean>;
 
     registration(_referral: string, overrides?: CallOverrides): Promise<void>;
 
     registrations(arg0: string, overrides?: CallOverrides): Promise<string>;
+
+    renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
     renounceRole(
       role: BytesLike,
@@ -639,6 +790,21 @@ export interface TokenMarketplace extends BaseContract {
       }
     >;
 
+    setPercentForFirstSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    setPercentForSecondSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    setPercentForTradeReferrer(
+      _percent: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
     startSaleRound(overrides?: CallOverrides): Promise<void>;
 
     supportsInterface(
@@ -662,6 +828,15 @@ export interface TokenMarketplace extends BaseContract {
         isActive: boolean;
       }
     >;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    unpause(overrides?: CallOverrides): Promise<void>;
+
+    withdraw(_to: string, overrides?: CallOverrides): Promise<void>;
   };
 
   filters: {
@@ -710,6 +885,15 @@ export interface TokenMarketplace extends BaseContract {
       _tradeAmount?: null
     ): EndTradeRoundEventFilter;
     EndTradeRound(_round?: null, _tradeAmount?: null): EndTradeRoundEventFilter;
+
+    "OwnershipTransferred(address,address)"(
+      previousOwner?: string | null,
+      newOwner?: string | null
+    ): OwnershipTransferredEventFilter;
+    OwnershipTransferred(
+      previousOwner?: string | null,
+      newOwner?: string | null
+    ): OwnershipTransferredEventFilter;
 
     "Paused(address)"(account?: null): PausedEventFilter;
     Paused(account?: null): PausedEventFilter;
@@ -823,6 +1007,12 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    owner(overrides?: CallOverrides): Promise<BigNumber>;
+
+    pause(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     paused(overrides?: CallOverrides): Promise<BigNumber>;
 
     registration(
@@ -831,6 +1021,10 @@ export interface TokenMarketplace extends BaseContract {
     ): Promise<BigNumber>;
 
     registrations(arg0: string, overrides?: CallOverrides): Promise<BigNumber>;
+
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
 
     renounceRole(
       role: BytesLike,
@@ -847,6 +1041,21 @@ export interface TokenMarketplace extends BaseContract {
     saleRounds(
       arg0: BigNumberish,
       overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    setPercentForFirstSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    setPercentForSecondSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    setPercentForTradeReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     startSaleRound(
@@ -867,6 +1076,20 @@ export interface TokenMarketplace extends BaseContract {
     tradeRounds(
       arg0: BigNumberish,
       overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    unpause(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    withdraw(
+      _to: string,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
   };
 
@@ -922,6 +1145,12 @@ export interface TokenMarketplace extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    pause(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
     paused(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     registration(
@@ -932,6 +1161,10 @@ export interface TokenMarketplace extends BaseContract {
     registrations(
       arg0: string,
       overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     renounceRole(
@@ -949,6 +1182,21 @@ export interface TokenMarketplace extends BaseContract {
     saleRounds(
       arg0: BigNumberish,
       overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    setPercentForFirstSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    setPercentForSecondSaleReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    setPercentForTradeReferrer(
+      _percent: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     startSaleRound(
@@ -969,6 +1217,20 @@ export interface TokenMarketplace extends BaseContract {
     tradeRounds(
       arg0: BigNumberish,
       overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    unpause(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    withdraw(
+      _to: string,
+      overrides?: PayableOverrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
   };
 }

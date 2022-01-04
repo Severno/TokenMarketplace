@@ -6,20 +6,27 @@ import "./ITokenMarketplace.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract TokenMarketplace is
     ITokenMarketplace,
     AccessControl,
+    Ownable,
     Pausable,
     ReentrancyGuard
 {
     AcademyToken token;
 
-    uint256 multiplier = 1 ether;
-    uint8 round = 0;
+    uint8 round;
     uint32 roundTime = 3 days;
+    uint256 multiplier = 1 ether;
     uint256 tokenInitialPrice = 0.00001 ether; // 0,00001 eth
+    uint256 referrerTradePercent = 975;
+    uint256 sellerPercent =
+        1000 - ((1000 - referrerTradePercent) + (1000 - referrerTradePercent));
+    uint256 firstReferrerSalePercent = 950;
+    uint256 secondReferrerSalePercent = 970;
 
     mapping(uint8 => SaleRoundSettings) public saleRounds;
     mapping(uint8 => TradeRoundSettings) public tradeRounds;
@@ -65,7 +72,6 @@ contract TokenMarketplace is
         saleRounds[round].tokenPrice = tokenInitialPrice;
         saleRounds[round].maxTradeAmount = 1 ether;
         saleRounds[round].isActive = false;
-        saleRounds[round].tradeAmount = 0;
         saleRounds[round].startTime = block.timestamp;
         saleRounds[round].tokensAmount =
             saleRounds[round].maxTradeAmount /
@@ -193,8 +199,10 @@ contract TokenMarketplace is
         address referral1 = registrations[msg.sender];
         address referral2 = registrations[referral1];
 
-        uint256 firstReferralTreasure = msg.value - ((msg.value / 100) * 95);
-        uint256 secondReferralTreasure = msg.value - ((msg.value / 100) * 97);
+        uint256 firstReferralTreasure = msg.value -
+            ((msg.value / 1000) * firstReferrerSalePercent);
+        uint256 secondReferralTreasure = msg.value -
+            ((msg.value / 1000) * secondReferrerSalePercent);
 
         if (referral1 != address(0)) {
             payable(referral1).transfer(firstReferralTreasure);
@@ -235,7 +243,7 @@ contract TokenMarketplace is
 
         destributeTreasureForTrade();
 
-        payable(bid.seller).transfer((ethCost / 1000) * 950);
+        payable(bid.seller).transfer((ethCost / 1000) * sellerPercent);
 
         emit Trade(msg.sender, bid.seller, _amount, bid.price);
 
@@ -282,8 +290,10 @@ contract TokenMarketplace is
         address referral1 = registrations[msg.sender];
         address referral2 = registrations[referral1];
 
-        uint256 firstReferralTreasure = _amount - ((_amount / 1000) * 975);
-        uint256 secondReferralTreasure = _amount - ((_amount / 1000) * 975);
+        uint256 firstReferralTreasure = _amount -
+            ((_amount / 1000) * referrerTradePercent);
+        uint256 secondReferralTreasure = _amount -
+            ((_amount / 1000) * referrerTradePercent);
 
         if (referral1 != address(0))
             payable(referral1).transfer(firstReferralTreasure);
@@ -294,8 +304,12 @@ contract TokenMarketplace is
     /* ANCHOR Bids */
 
     function cancelAllBids() private {
-        for (uint256 i = 0; i < bids.length; i++) {
-            token.transfer(msg.sender, bids[i].amount);
+        uint256 length = bids.length;
+
+        for (uint256 i; i < length; i++) {
+            if (bids[i].seller != address(0)) {
+                token.transfer(bids[i].seller, bids[i].amount);
+            }
         }
 
         delete bids;
@@ -337,11 +351,15 @@ contract TokenMarketplace is
         emit BidCreated(msg.sender, _amount, _price);
     }
 
-    /* ANCHOR Getters */
-
     function getBids() external view returns (Bid[] memory) {
         return bids;
     }
+
+    function withdraw(address _to) external payable isAdmin {
+        payable(_to).transfer(msg.value);
+    }
+
+    /* ANCHOR Getters */
 
     function getNextRoundTokenPrice(uint256 _prevRoundTokenPrice)
         internal
@@ -376,5 +394,42 @@ contract TokenMarketplace is
     function isFullfilledMaxTrade() internal view returns (bool) {
         return
             saleRounds[round].tradeAmount == saleRounds[round].maxTradeAmount;
+    }
+
+    function setPercentForFirstSaleReferrer(uint256 _percent) external isAdmin {
+        firstReferrerSalePercent = 1000 - (_percent * 10);
+    }
+
+    function setPercentForSecondSaleReferrer(uint256 _percent)
+        external
+        isAdmin
+    {
+        secondReferrerSalePercent = 1000 - (_percent * 10);
+    }
+
+    function setPercentForTradeReferrer(uint256 _percent) external isAdmin {
+        referrerTradePercent = 1000 - (_percent * 10);
+    }
+
+    /**
+     * @dev Triggers stopped state.
+     *
+     * Requirements:
+     *
+     * - The contract must not be paused.
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @dev Returns to normal state.
+     *
+     * Requirements:
+     *
+     * - The contract must be paused.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
